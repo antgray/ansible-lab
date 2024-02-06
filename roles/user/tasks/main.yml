@@ -1,7 +1,7 @@
 ---
 - name: Include password file
   ansible.builtin.include_vars:
-    file: ../defaults/crypted.yml
+    file: ../defaults/secure.yml
 
 - name: Create User
   ansible.builtin.user:
