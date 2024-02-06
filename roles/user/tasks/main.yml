@@ -1,0 +1,35 @@
+---
+- name: Include password file
+  ansible.builtin.include_vars:
+    file: ../defaults/crypted.yml
+
+- name: Create User
+  ansible.builtin.user:
+    state: present
+    name: ag
+    groups: wheel
+    shell: "/bin/bash"
+    password: "{{ user_password | password_hash('sha512') }}"
+    update_password: always
+
+- name: Set root User Password
+  ansible.builtin.user:
+    state: present
+    name: root
+    password: "{{ user_password | password_hash('sha512') }}"
+    update_password: always
+
+- name: Passwordless sudo for wheel group
+  ansible.builtin.lineinfile:
+    state: present
+    path: "/etc/sudoers"
+    regexp: "^%wheel"
+    line: "%wheel ALL=(ALL) NOPASSWD: ALL"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Create Authorised Keys
+  remote_user: root
+  ansible.posix.authorized_key:
+    state: present
+    user: ag
+    key: "{{ lookup('file', 'ag_default.pub') }}"

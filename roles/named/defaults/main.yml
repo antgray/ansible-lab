@@ -1,0 +1,17 @@
+---
+packages:
+  - bind
+  - bind-utils
+
+systemd_service: "named"
+firewall_port: "dns"
+
+# rndc_key:
+# DNS update key, generated with `rndc-confgen -A hmac-sha256 -a -b 512`
+# stored in ansible vault defaults/secure.yml
+
+bind_user: "named"
+bind_log_file: "/var/{{ systemd_service }}/{{ systemd_service }}.log"
+bind_config_file: "named.conf"
+bind_rndc_key: "/etc/rndc.key"
+bind_data_dir: "/var/named/"

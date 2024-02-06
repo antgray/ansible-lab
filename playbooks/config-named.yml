@@ -1,0 +1,7 @@
+---
+- name: Configure named using role
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - named

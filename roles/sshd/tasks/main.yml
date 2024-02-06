@@ -1,0 +1,32 @@
+---
+- name: Configure OpenSSH Server
+  vars:
+    - sshd_subsystem: "/usr/libexec/openssh/sftp-server"
+  block:
+    - name: Install Packages
+      ansible.builtin.package:
+        name: "openssh-server"
+        state: present
+
+    - name: Copy Configuration File {{ sshd_config_file }}
+      ansible.builtin.template:
+        src: "{{ sshd_config_file }}.j2"
+        dest: "/etc/ssh/{{ sshd_config_file }}"
+        owner: root
+        group: root
+        mode: "0600"
+      notify:
+        - Restart sshd
+
+    - name: Check Services
+      ansible.builtin.service_facts:
+
+    - name: Enable Service in Firewalld {{ firewall_port }}
+      ansible.posix.firewalld:
+        immediate: true
+        service: "{{ firewall_port }}"
+        permanent: true
+        state: enabled
+      when: "'firewalld.service' in ansible_facts.services"
+      ignore_errors: true
+      register: ignore_errors_register

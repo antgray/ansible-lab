@@ -1,0 +1,97 @@
+---
+- name: Include Secure Vars
+  ansible.builtin.include_vars:
+    file: ../defaults/secure.yml
+
+- name: Install Packages
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ packages }}"
+
+- name: Enable Service in Firewalld {{ firewall_port }}
+  ansible.posix.firewalld:
+    immediate: true
+    service: "{{ firewall_port }}"
+    permanent: true
+    state: enabled
+
+- name: Create Logs Directory
+  ansible.builtin.file:
+    path: "/var/named/log"
+    state: directory
+    owner: "{{ bind_user }}"
+    group: "{{ bind_user }}"
+    mode: "0750"
+
+- name: SELinux - Set named_write_master_zones flag on and keep it persistent across reboots
+  ansible.posix.seboolean:
+    name: named_write_master_zones
+    state: true
+    persistent: true
+
+- name: Configure Master DNS Server
+  when: "'dns1' in group_names"
+  block:
+    - name: Populate Internal Zone {{ bind_data_dir }}
+      ansible.builtin.template:
+        src: "files/master.prod.test"
+        dest: "{{ bind_data_dir }}"
+        owner: "{{ bind_user }}"
+        group: "{{ bind_user }}"
+        mode: "0644"
+        validate: "named-checkzone {{ homelab_domain_name }} %s"
+      notify:
+        - Restart bind
+
+    - name: Populate Reverse Zone {{ bind_data_dir }}
+      ansible.builtin.template:
+        src: "files/192.168.1.rev"
+        dest: "{{ bind_data_dir }}"
+        owner: "{{ bind_user }}"
+        group: "{{ bind_user }}"
+        mode: "0644"
+        validate: "named-checkzone 1.168.192.in-addr.arpa %s"
+      notify:
+        - Restart bind
+
+    - name: Copy Configuration File {{ bind_config_file }}
+      ansible.builtin.template:
+        src: "{{ bind_config_file }}.master.j2"
+        dest: "/etc/{{ bind_config_file }}"
+        owner: root
+        group: "{{ bind_user }}"
+        mode: "0640"
+        validate: "named-checkconf %s"
+      notify:
+        - Restart bind
+
+- name: Install DNS Updater Key
+  ansible.builtin.template:
+    src: "rndc.key.j2"
+    dest: "/etc/rndc.key"
+    owner: root
+    group: "{{ bind_user }}"
+    mode: "0640"
+  notify:
+    - Restart named
+
+- name: Configure Slave DNS Server
+  when: "'dns2' in group_names"
+  block:
+    - name: Copy Configuration File {{ bind_config_file }}
+      ansible.builtin.template:
+        src: "{{ bind_config_file }}.slave.j2"
+        dest: "/etc/{{ bind_config_file }}"
+        owner: root
+        group: "{{ bind_user }}"
+        mode: "0640"
+        validate: "named-checkconf %s"
+      notify:
+        - Restart named
+
+- name: Start and Enable Service {{ systemd_service }}
+  ansible.builtin.service:
+    name: "{{ systemd_service }}"
+    state: started
+    enabled: true
